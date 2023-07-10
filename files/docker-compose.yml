@@ -1,0 +1,32 @@
+version: '3.5'
+services:
+  jenkins:
+    image: jenkins:lts
+    restart: unless-stopped
+    networks:
+      - jenkins
+    ports:
+      - "8080"
+    volumes:
+      - 'jenkins_home:/var/jenkins_home'
+
+  haproxy:
+    image: haproxy:2.3-alpine
+    restart: unless-stopped
+    networks:
+      - jenkins
+    volumes:
+      - '/opt/jenkins-deployment-files/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'
+      - '/opt/jenkins-deployment-files/haproxy/certs:/opt/haproxy/certs:ro'
+    ports:
+      - '443:443'
+      - '80:80'
+
+
+networks:
+  jenkins:
+    name: jenkins
+    driver: bridge
+
+volumes:
+  jenkins_home:

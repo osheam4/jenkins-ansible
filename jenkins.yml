@@ -1,0 +1,73 @@
+- hosts: all
+  gather_facts: false
+
+  vars:
+    ansible_python_interpreter: /bin/python3
+
+
+  tasks:
+  - name: pip install modules
+    pip:
+      name: '{{ item }}'
+      virtualenv: ~/.python3docker
+      virtualenv_command: /bin/python3 -m venv
+      # extra_args: -i http://my-internal-pypi-server/simple/ --trusted-host my-internal-pypi-server
+    with_items:
+      - docker
+      - jsondiff
+      - pyyaml
+
+  - name: create conf directories
+    file:
+      path: '{{ item}}'
+      state: directory
+      mode: '0700'
+      owner: docker_admin
+    become: true
+    become_method: sudo
+    with_items:
+      - /opt/jenkins-deployment-files
+      - /opt/jenkins-deployment-files/haproxy
+      - /opt/jenkins-deployment-files/haproxy/certs
+      - /opt/jenkins-deployment-files/docker-compose
+
+  - name: include secret vars
+    include_vars:
+      file: stages/{{ env }}/group_vars/docker_secrets.yml
+      name: docker_secrets
+
+
+- hosts: all
+  gather_facts: false
+
+  vars:
+    ansible_python_interpreter: ~/.python3docker/bin/python
+
+  tasks:
+    - name: copy docker-compose
+    copy:
+      src: files/docker-compose.yml
+      dest: '/opt/jenkins-deployment-files/docker-compose/docker-compose.yml'
+      mode: '0644'
+
+  - name: copy haproxy configs
+    copy:
+      src: files/haproxy.cfg
+      dest: '/opt/jenkins-deployment-files/haproxy/haproxy.cfg'
+      mode: '0644'
+
+  - name: certs
+    copy:
+      content: '{{ docker_secrets.jenkins_pem }}'
+      dest: '/opt/jenkins-deployment-files/haproxy/certs/jenkins.pem'
+
+  - name: pull latest images
+    shell:
+      cmd: docker-compose pull
+      chdir: /opt/jenkins-deployment-files/docker-compose
+
+  - name: Run docker-compose
+    shell:
+      cmd: docker-compose -f docker-compose.yml up -d
+      chdir: /opt/jenkins-deployment-files/docker-compose
+
